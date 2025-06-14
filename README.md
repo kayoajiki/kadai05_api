@@ -8,7 +8,7 @@
 
 ③アプリのデプロイURL
 
-
+https://kayoajiki.github.io/kadai05_api/kadai05_api/wether_gogyo.html
 
 ④アプリのログイン用IDまたはPassword（ある場合）
 
