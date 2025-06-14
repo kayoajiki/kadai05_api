@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>五行バランス占い</title>
+  <style>
+    body { font-family: sans-serif; background-color: #f4f4fc; padding: 20px; }
+    h1 { color: #3949ab; }
+    .box { background: #fff; border-radius: 10px; border: 2px solid #3949ab; padding: 20px; max-width: 700px; }
+    .highlight { color: #e53935; font-weight: bold; }
+    .element { font-weight: bold; color: #1e88e5; }
+    .advice { margin-top: 10px; }
+    canvas { margin-top: 20px; background-color: #fff; border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+  <h1>🌏 今日の五行バランス占い</h1>
+  <div class="box" id="output">
+    <p>位置情報と天気を読み取っています...</p>
+  </div>
+  <canvas id="pentagonChart" width="300" height="300"></canvas>
+
+  <script>
+    const OPENWEATHER_API_KEY = "KEY";//APIキーをここに入力
+
+    const fiveElementMap = {
+      "晴れ": { boost: {"火": 2, "水": -1} },
+      "曇り": { boost: {"土": 1, "木": -1} },
+      "雨": { boost: {"水": 2, "火": -1, "土": -1} },
+      "風": { boost: {"木": 2, "金": -1} },
+      "雪": { boost: {"金": 2, "木": -1} }
+    };
+
+    const fiveElementAdvice = {
+      "木": "🌳 木が不足 → 緑の野菜を食べる／森林浴がおすすめ",
+      "火": "🔥 火が不足 → 赤い服を着る／体を温める行動を",
+      "土": "⛰ 土が不足 → 黄色系の食事（さつまいもなど）をとる",
+      "金": "⚪ 金が不足 → 金属製アクセサリー／香りを大切に",
+      "水": "💧 水が不足 → 湯船につかる／黒いアイテムが吉"
+    };
+
+    function getGeoLocation() {
+      navigator.geolocation.getCurrentPosition(success, error);
+    }
+
+    function success(position) {
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+
+      fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&lang=ja`)
+        .then(res => res.json())
+        .then(data => {
+          const weather = data.weather[0].main;
+          const city = data.name;
+          const simplifiedWeather = convertWeather(weather);
+          const baseScore = {"木": 3, "火": 3, "土": 3, "金": 3, "水": 3};
+          const boost = fiveElementMap[simplifiedWeather]?.boost || {};
+
+          for (const key in boost) {
+            baseScore[key] = Math.max(0, Math.min(5, baseScore[key] + boost[key]));
+          }
+
+          const lacking = Object.entries(baseScore).filter(([_, score]) => score <= 2).map(([el]) => el);
+          let lackingAdvice = lacking.map(el => `<li>${fiveElementAdvice[el]}</li>`).join("");
+
+          document.getElementById("output").innerHTML = `
+            <p>📍エリア：<strong>${city}</strong></p>
+            <p>☁️ 天気：<strong>${simplifiedWeather}</strong></p>
+            <p class="highlight">🔮 五行バランスチャートをチェック！</p>
+            <div class="advice">
+              <p>⚖ 不足している五行と補う方法：</p>
+              <ul>${lackingAdvice}</ul>
+            </div>
+          `;
+
+          drawPentagonChart(baseScore);
+        });
+    }
+
+    function error(err) {
+      document.getElementById("output").innerHTML = `<p>位置情報が取得できませんでした。${err.message}</p>`;
+    }
+
+    function convertWeather(raw) {
+      if (raw.includes("Clear")) return "晴れ";
+      if (raw.includes("Clouds")) return "曇り";
+      if (raw.includes("Rain") || raw.includes("Drizzle")) return "雨";
+      if (raw.includes("Snow")) return "雪";
+      if (raw.includes("Wind")) return "風";
+      return "不明";
+    }
+
+    function drawPentagonChart(scores) {
+      const canvas = document.getElementById("pentagonChart");
+      const ctx = canvas.getContext("2d");
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const maxRadius = 100;
+      const elements = ["木", "火", "土", "金", "水"];
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 外枠の五角形
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const angle = (Math.PI * 2 / 5) * i - Math.PI / 2;
+        const x = centerX + maxRadius * Math.cos(angle);
+        const y = centerY + maxRadius * Math.sin(angle);
+        ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.strokeStyle = "#3949ab";
+      ctx.stroke();
+
+      // ラベル
+      for (let i = 0; i < 5; i++) {
+        const angle = (Math.PI * 2 / 5) * i - Math.PI / 2;
+        const x = centerX + (maxRadius + 15) * Math.cos(angle);
+        const y = centerY + (maxRadius + 15) * Math.sin(angle);
+        ctx.fillStyle = "#3949ab";
+        ctx.fillText(elements[i], x - 10, y);
+      }
+
+      // レーダーチャート
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const value = scores[elements[i]] / 5;
+        const angle = (Math.PI * 2 / 5) * i - Math.PI / 2;
+        const x = centerX + maxRadius * value * Math.cos(angle);
+        const y = centerY + maxRadius * value * Math.sin(angle);
+        ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fillStyle = "rgba(57, 73, 171, 0.3)";
+      ctx.fill();
+      ctx.strokeStyle = "#1e88e5";
+      ctx.stroke();
+    }
+
+    getGeoLocation();
+  </script>
+</body>
+</html>
+
